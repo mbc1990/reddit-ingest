@@ -4,6 +4,7 @@ import "encoding/json"
 import "github.com/prometheus/client_golang/prometheus"
 import "net/http"
 import "fmt"
+import "time"
 import "os"
 
 // Configuration struct that conf json file is read into
@@ -20,6 +21,7 @@ type Configuration struct {
 	Secret           string
 	ClientId         string
 	PrometheusPort   string
+	RunEverySeconds  int
 }
 
 func main() {
@@ -42,5 +44,10 @@ func main() {
 	go http.ListenAndServe(conf.PrometheusPort, nil)
 
 	ing := NewRedditIngester(&conf)
-	ing.Run()
+
+	// Run forever, sleeping between runs
+	for {
+		go ing.Run()
+		time.Sleep(time.Duration(conf.RunEverySeconds) * time.Second)
+	}
 }
