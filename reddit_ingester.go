@@ -10,8 +10,17 @@ import "io/ioutil"
 import "fmt"
 
 type SubredditResponse struct {
+	Data struct {
+		Children []struct {
+			Data struct {
+				Selftext  string
+				Permalink string
+			}
+		}
+	}
 }
 
+// TODO: This one is trickier because it needs to recurse over a comment tree
 type CommentsResponse struct {
 }
 
@@ -42,7 +51,11 @@ func (r *RedditIngester) Worker() {
 			}
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
-			fmt.Println(string(body))
+			subredditResponse := new(SubredditResponse)
+			json.Unmarshal(body, &subredditResponse)
+
+			// TODO: Iterate over URLs and add jobs to queue for comment section parsing
+
 		} else if info.PageType == "comments" {
 			// TODO: Traverse comments trees
 			// TODO: Extract time, content, unique id
