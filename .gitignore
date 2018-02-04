@@ -14,5 +14,6 @@
 .glide/
 
 *.swp
+*.swo
 conf.json
 reddit-ingest

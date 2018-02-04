@@ -12,6 +12,15 @@ import "bytes"
 import "io/ioutil"
 import "fmt"
 
+type RedditIngester struct {
+	Conf           *Configuration
+	WorkQueue      chan JobInfo
+	BaseURL        string
+	Wg             *sync.WaitGroup
+	AccessToken    string
+	PostgresClient *PostgresClient
+}
+
 // TODO: Replace this with ResponsePrimitive
 type SubredditResponse struct {
 	Data struct {
@@ -42,14 +51,6 @@ type ResponsePrimitive struct {
 type JobInfo struct {
 	URL      string // URL to fetch
 	PageType string // "subreddit" or "comments"
-}
-
-type RedditIngester struct {
-	Conf        *Configuration
-	WorkQueue   chan JobInfo
-	BaseURL     string
-	Wg          *sync.WaitGroup
-	AccessToken string
 }
 
 // Parses a response tree for comments and writes them to postgres
@@ -178,6 +179,10 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r := new(RedditIngester)
 	r.Conf = conf
 	r.BaseURL = "https://oauth.reddit.com/"
+
+	// Postgres
+	r.PostgresClient = NewPostgresClient(r.Conf.PGHost, r.Conf.PGPort,
+		r.Conf.PGUser, r.Conf.PGPassword, r.Conf.PGDbname)
 
 	var wg sync.WaitGroup
 	r.Wg = &wg
