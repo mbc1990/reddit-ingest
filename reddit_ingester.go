@@ -94,6 +94,7 @@ func (r *RedditIngester) Worker() {
 		// TODO: Refactor request construction out of the if/then cases
 		if info.PageType == "subreddit" {
 			url := info.URL
+			fmt.Println("Getting stories for " + url)
 			req, _ := http.NewRequest("GET", url, nil)
 			req.Header.Add("Authorization", "Bearer "+r.AccessToken)
 			req.Header.Add("User-Agent", r.Conf.ClientId+"by "+r.Conf.Username)
@@ -114,6 +115,7 @@ func (r *RedditIngester) Worker() {
 				ji := new(JobInfo)
 				ji.URL = url
 				ji.PageType = "comments"
+				fmt.Println("Adding " + url + " to queue")
 				r.WorkQueue <- *ji
 			}
 
@@ -199,7 +201,7 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r.Authenticate()
 
 	// Create and populate worker queue
-	r.WorkQueue = make(chan JobInfo)
+	r.WorkQueue = make(chan JobInfo, 5000)
 	for i := 0; i < r.Conf.NumWorkers; i++ {
 		r.Wg.Add(1)
 		go r.Worker()
