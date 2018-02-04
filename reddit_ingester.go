@@ -1,8 +1,7 @@
 package main
 
 import "log"
-
-// import "strconv"
+import "strconv"
 import "net/http"
 import "encoding/json"
 import "encoding/base64"
@@ -11,7 +10,7 @@ import "bytes"
 import "io/ioutil"
 import "fmt"
 
-// TODO: Replace this with ResponsePrimative
+// TODO: Replace this with ResponsePrimitive
 type SubredditResponse struct {
 	Data struct {
 		Children []struct {
@@ -24,15 +23,17 @@ type SubredditResponse struct {
 }
 
 // The reddit api returns trees of these objects which are identified by their "kind" field
-type ResponsePrimative struct {
+type ResponsePrimitive struct {
 	Kind string
 	Data struct {
-		Created_UTC int
-		Body        string
-		Title       string
-		Selftext    string
-		Children    *[]ResponsePrimative
-		Replies     *ResponsePrimative
+		Created  int
+		Score    int
+		Id       string
+		Body     string
+		Title    string
+		Selftext string
+		Children *[]ResponsePrimitive
+		Replies  *ResponsePrimitive
 	}
 }
 
@@ -50,16 +51,22 @@ type RedditIngester struct {
 }
 
 // Parses a response tree for comments and writes them to postgres
-func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimative) {
+func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 	// TODO: This method just prints the comments right now. Next step is writing them to postgres
 	switch tree.Kind {
 	case "t3":
+		// TODO: Send these to postgres
 		fmt.Println(tree.Data.Title)
 		fmt.Println(tree.Data.Selftext)
 	case "t1":
-		fmt.Println(tree.Data.Body)
+		// TODO: Send this to postgres
+		fmt.Println("ID: " + tree.Data.Id)
+		fmt.Println("Created at: " + strconv.Itoa(tree.Data.Created))
+		fmt.Println("Score: " + strconv.Itoa(tree.Data.Score))
+		fmt.Println("Body: " + tree.Data.Body)
+		fmt.Println("----------------------------------")
 		// Don't recurse if it's an empty struct (leaf node)
-		if *tree.Data.Replies != (ResponsePrimative{}) {
+		if *tree.Data.Replies != (ResponsePrimitive{}) {
 			r.ParseTreeForComments(tree.Data.Replies)
 		}
 	case "Listing":
@@ -88,12 +95,15 @@ func (r *RedditIngester) Worker() {
 			body, _ := ioutil.ReadAll(resp.Body)
 			subredditResponse := new(SubredditResponse)
 			json.Unmarshal(body, &subredditResponse)
-			for _, story := range subredditResponse.Data.Children {
+			for i, story := range subredditResponse.Data.Children {
 				url := story.Data.Permalink
 				ji := new(JobInfo)
 				ji.URL = url
 				ji.PageType = "comments"
 				r.WorkQueue <- *ji
+				if i == 0 {
+					break
+				}
 			}
 
 		} else if info.PageType == "comments" {
@@ -109,7 +119,8 @@ func (r *RedditIngester) Worker() {
 			}
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
-			commentResponse := make([]ResponsePrimative, 0)
+			// fmt.Println(string(body))
+			commentResponse := make([]ResponsePrimitive, 0)
 			json.Unmarshal(body, &commentResponse)
 
 			// A comment response is an array of trees, so send each off
