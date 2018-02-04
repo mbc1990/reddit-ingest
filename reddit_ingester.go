@@ -83,18 +83,17 @@ func (r *RedditIngester) Authenticate() {
 	toEncode := []byte(r.Conf.ClientId + ":" + r.Conf.Secret)
 	toSend := base64.StdEncoding.EncodeToString(toEncode)
 	req.Header.Add("Authorization", "Basic "+toSend)
+	req.Header.Add("User-Agent", r.Conf.ClientId+"by "+r.Conf.Username)
 	resp, err := client.Do(req)
 	if err != nil {
 		panic(err)
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(body))
 
 	authResp := new(AuthResponse)
 	json.Unmarshal(body, &authResp)
 	r.AccessToken = authResp.Access_token
-	fmt.Println(authResp)
 }
 
 func NewRedditIngester(conf *Configuration) *RedditIngester {
@@ -106,9 +105,7 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r.Wg = &wg
 
 	// Reddit has an unauthenticated API but it's far too rate limited
-	// r.Authenticate()
-
-	// TODO: Delete - testing because the auth flow keeps getting rate limited
+	r.Authenticate()
 
 	// Create and populate worker queue
 	r.WorkQueue = make(chan JobInfo)

@@ -12,6 +12,11 @@ type Configuration struct {
 	PGPassword       string
 	PGDbname         string
 	TargetSubreddits []string // Subreddits whose content will be consumed
+	NumWorkers       int
+	Username         string
+	Password         string
+	Secret           string
+	ClientId         string
 }
 
 func main() {
