@@ -1,7 +1,13 @@
 package main
 
 import "log"
+import "net/http"
+import "encoding/json"
+import "encoding/base64"
 import "sync"
+import "bytes"
+import "io/ioutil"
+import "fmt"
 
 type SubredditResponse struct {
 }
@@ -15,10 +21,11 @@ type JobInfo struct {
 }
 
 type RedditIngester struct {
-	Conf      *Configuration
-	WorkQueue chan JobInfo
-	BaseURL   string
-	Wg        *sync.WaitGroup
+	Conf        *Configuration
+	WorkQueue   chan JobInfo
+	BaseURL     string
+	Wg          *sync.WaitGroup
+	AccessToken string
 }
 
 func (r *RedditIngester) Worker() {
@@ -52,13 +59,51 @@ func (r *RedditIngester) Run() {
 	}
 }
 
+type AuthResponse struct {
+	Access_token string
+	Error        int
+}
+
+// Goes through the reddit OAuth flow
+func (r *RedditIngester) Authenticate() {
+	url := "https://www.reddit.com/api/v1/access_token"
+	client := &http.Client{}
+	bodyToSend := bytes.NewBuffer([]byte("grant_type=client_credentials&\\device_id=1"))
+	req, _ := http.NewRequest("POST", url, bodyToSend)
+
+	toEncode := []byte(r.Conf.ClientId + ":" + r.Conf.Secret)
+	toSend := base64.StdEncoding.EncodeToString(toEncode)
+	req.Header.Add("Authorization", "Basic "+toSend)
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(string(body))
+
+	authResp := new(AuthResponse)
+	json.Unmarshal(body, &authResp)
+	r.AccessToken = authResp.Access_token
+	fmt.Println(authResp)
+}
+
 func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r := new(RedditIngester)
 	r.Conf = conf
 	r.BaseURL = "https://www.reddit.com/r/"
-	r.WorkQueue = make(chan JobInfo)
 
-	// Populate worker queue
+	var wg sync.WaitGroup
+	r.Wg = &wg
+
+	// Reddit has an unauthenticated API but it's far too rate limited
+	// r.Authenticate()
+
+	// TODO: Delete - testing because the auth flow keeps getting rate limited
+	r.AccessToken = "mXW9f1XL1zJMYqT4ySolIFFdQS4"
+
+	// Create and populate worker queue
+	r.WorkQueue = make(chan JobInfo)
 	for i := 0; i < r.Conf.NumWorkers; i++ {
 		r.Wg.Add(1)
 		go r.Worker()
