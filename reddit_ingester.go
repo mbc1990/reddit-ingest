@@ -53,10 +53,20 @@ func (r *RedditIngester) Worker() {
 			body, _ := ioutil.ReadAll(resp.Body)
 			subredditResponse := new(SubredditResponse)
 			json.Unmarshal(body, &subredditResponse)
-
-			// TODO: Iterate over URLs and add jobs to queue for comment section parsing
+			for i, story := range subredditResponse.Data.Children {
+				fmt.Println(story)
+				url := story.Data.Permalink
+				ji := new(JobInfo)
+				ji.URL = url
+				ji.PageType = "comments"
+				r.WorkQueue <- *ji
+				if i == 1 {
+					break
+				}
+			}
 
 		} else if info.PageType == "comments" {
+			fmt.Println(info)
 			// TODO: Traverse comments trees
 			// TODO: Extract time, content, unique id
 			// TODO: Write to postgres if unique
