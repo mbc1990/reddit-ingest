@@ -75,7 +75,7 @@ func (r *RedditIngester) Worker() {
 	for info := range r.WorkQueue {
 		// TODO: Refactor request construction out of the if/then cases
 		if info.PageType == "subreddit" {
-			url := "https://oauth.reddit.com/r/boston"
+			url := info.URL
 			req, _ := http.NewRequest("GET", url, nil)
 			req.Header.Add("Authorization", "Bearer "+r.AccessToken)
 			req.Header.Add("User-Agent", r.Conf.ClientId+"by "+r.Conf.Username)
@@ -88,20 +88,16 @@ func (r *RedditIngester) Worker() {
 			body, _ := ioutil.ReadAll(resp.Body)
 			subredditResponse := new(SubredditResponse)
 			json.Unmarshal(body, &subredditResponse)
-			for i, story := range subredditResponse.Data.Children {
+			for _, story := range subredditResponse.Data.Children {
 				url := story.Data.Permalink
 				ji := new(JobInfo)
 				ji.URL = url
 				ji.PageType = "comments"
 				r.WorkQueue <- *ji
-				// TODO: Testing, remove
-				if i == 0 {
-					break
-				}
 			}
 
 		} else if info.PageType == "comments" {
-			url := "https://oauth.reddit.com" + info.URL
+			url := r.BaseURL + info.URL
 			fmt.Println("Getting comments for " + url)
 			req, _ := http.NewRequest("GET", url, nil)
 			req.Header.Add("Authorization", "Bearer "+r.AccessToken)
@@ -125,9 +121,6 @@ func (r *RedditIngester) Worker() {
 		} else {
 			log.Fatal("Unexpected job type")
 		}
-
-		// TODO: If we want to terminate a worker early, handle that message here
-		// TODO: if terminate then call r.wg.Done()
 	}
 }
 
@@ -136,7 +129,7 @@ func (r *RedditIngester) Worker() {
 func (r *RedditIngester) Run() {
 	for _, subreddit := range r.Conf.TargetSubreddits {
 		job := JobInfo{}
-		job.URL = r.BaseURL + subreddit
+		job.URL = r.BaseURL + "r/" + subreddit
 		job.PageType = "subreddit"
 		r.WorkQueue <- job
 	}
@@ -172,7 +165,7 @@ func (r *RedditIngester) Authenticate() {
 func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r := new(RedditIngester)
 	r.Conf = conf
-	r.BaseURL = "https://www.reddit.com/r/"
+	r.BaseURL = "https://oauth.reddit.com/"
 
 	var wg sync.WaitGroup
 	r.Wg = &wg
