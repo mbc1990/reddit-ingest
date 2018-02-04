@@ -121,7 +121,6 @@ func (r *RedditIngester) Worker() {
 			}
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
-			// fmt.Println(string(body))
 			commentResponse := make([]ResponsePrimitive, 0)
 			json.Unmarshal(body, &commentResponse)
 
