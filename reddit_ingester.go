@@ -37,14 +37,15 @@ type SubredditResponse struct {
 type ResponsePrimitive struct {
 	Kind string
 	Data struct {
-		Score       int
-		Created_utc float64
-		Id          string
-		Body        string
-		Title       string
-		Selftext    string
-		Children    *[]ResponsePrimitive
-		Replies     *ResponsePrimitive
+		Score                   int
+		Created_utc             float64
+		Id                      string
+		Body                    string
+		Subreddit_name_prefixed string
+		Title                   string
+		Selftext                string
+		Children                *[]ResponsePrimitive
+		Replies                 *ResponsePrimitive
 	}
 }
 
@@ -68,6 +69,13 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 		fmt.Println("Score: " + strconv.Itoa(tree.Data.Score))
 		fmt.Println("Body: " + tree.Data.Body)
 		fmt.Println("----------------------------------")
+
+		// Insert into postgres if comment hasn't been seen before
+		if !r.PostgresClient.CommentExists(tree.Data.Id) {
+			r.PostgresClient.InsertComment(tree.Data.Id, tree.Data.Subreddit_name_prefixed,
+				tree.Data.Body, int(tree.Data.Created_utc))
+
+		}
 		// Don't recurse if it's an empty struct (leaf node)
 		if *tree.Data.Replies != (ResponsePrimitive{}) {
 			r.ParseTreeForComments(tree.Data.Replies)
