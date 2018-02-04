@@ -6,6 +6,8 @@ import "net/http"
 import "encoding/json"
 import "encoding/base64"
 import "sync"
+
+// import "time"
 import "bytes"
 import "io/ioutil"
 import "fmt"
@@ -26,14 +28,14 @@ type SubredditResponse struct {
 type ResponsePrimitive struct {
 	Kind string
 	Data struct {
-		Created  int
-		Score    int
-		Id       string
-		Body     string
-		Title    string
-		Selftext string
-		Children *[]ResponsePrimitive
-		Replies  *ResponsePrimitive
+		Score       int
+		Created_utc float64
+		Id          string
+		Body        string
+		Title       string
+		Selftext    string
+		Children    *[]ResponsePrimitive
+		Replies     *ResponsePrimitive
 	}
 }
 
@@ -61,7 +63,7 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 	case "t1":
 		// TODO: Send this to postgres
 		fmt.Println("ID: " + tree.Data.Id)
-		fmt.Println("Created at: " + strconv.Itoa(tree.Data.Created))
+		fmt.Println("Created at: " + strconv.Itoa(int(tree.Data.Created_utc)))
 		fmt.Println("Score: " + strconv.Itoa(tree.Data.Score))
 		fmt.Println("Body: " + tree.Data.Body)
 		fmt.Println("----------------------------------")
@@ -94,16 +96,16 @@ func (r *RedditIngester) Worker() {
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
 			subredditResponse := new(SubredditResponse)
-			json.Unmarshal(body, &subredditResponse)
-			for i, story := range subredditResponse.Data.Children {
+			err = json.Unmarshal(body, &subredditResponse)
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, story := range subredditResponse.Data.Children {
 				url := story.Data.Permalink
 				ji := new(JobInfo)
 				ji.URL = url
 				ji.PageType = "comments"
 				r.WorkQueue <- *ji
-				if i == 0 {
-					break
-				}
 			}
 
 		} else if info.PageType == "comments" {
