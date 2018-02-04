@@ -1,6 +1,8 @@
 package main
 
 import "encoding/json"
+import "github.com/prometheus/client_golang/prometheus"
+import "net/http"
 import "fmt"
 import "os"
 
@@ -17,6 +19,7 @@ type Configuration struct {
 	Password         string
 	Secret           string
 	ClientId         string
+	PrometheusPort   string
 }
 
 func main() {
@@ -32,6 +35,11 @@ func main() {
 	if err != nil {
 		fmt.Println("error:", err)
 	}
+
+	prometheus.MustRegister(commentsCounter)
+	prometheus.MustRegister(duplicatesGauge)
+	http.Handle("/metrics", prometheus.Handler())
+	go http.ListenAndServe(conf.PrometheusPort, nil)
 
 	ing := NewRedditIngester(&conf)
 	ing.Run()

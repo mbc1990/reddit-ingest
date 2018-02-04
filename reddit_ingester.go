@@ -72,9 +72,11 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 
 		// Insert into postgres if comment hasn't been seen before
 		if !r.PostgresClient.CommentExists(tree.Data.Id) {
+			commentsCounter.Inc()
 			r.PostgresClient.InsertComment(tree.Data.Id, tree.Data.Subreddit_name_prefixed,
 				tree.Data.Body, int(tree.Data.Created_utc))
-
+		} else {
+			duplicatesGauge.Inc()
 		}
 		// Don't recurse if it's an empty struct (leaf node)
 		if *tree.Data.Replies != (ResponsePrimitive{}) {
