@@ -31,10 +31,18 @@ type RedditIngester struct {
 func (r *RedditIngester) Worker() {
 	for info := range r.WorkQueue {
 		if info.PageType == "subreddit" {
-			// TODO: Get page
-			// TODO: parse URLs
-			// TODO: Send comments jobs to work queue
-
+			url := "https://oauth.reddit.com/r/cryptocurrencies"
+			req, _ := http.NewRequest("GET", url, nil)
+			req.Header.Add("Authorization", "Bearer "+r.AccessToken)
+			req.Header.Add("User-Agent", r.Conf.ClientId+"by "+r.Conf.Username)
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+			body, _ := ioutil.ReadAll(resp.Body)
+			fmt.Println(string(body))
 		} else if info.PageType == "comments" {
 			// TODO: Traverse comments trees
 			// TODO: Extract time, content, unique id
@@ -53,10 +61,11 @@ func (r *RedditIngester) Worker() {
 func (r *RedditIngester) Run() {
 	for _, subreddit := range r.Conf.TargetSubreddits {
 		job := JobInfo{}
-		job.URL = r.BaseURL + subreddit + ".json"
+		job.URL = r.BaseURL + subreddit
 		job.PageType = "subreddit"
 		r.WorkQueue <- job
 	}
+	r.Wg.Wait()
 }
 
 type AuthResponse struct {
@@ -100,7 +109,6 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	// r.Authenticate()
 
 	// TODO: Delete - testing because the auth flow keeps getting rate limited
-	r.AccessToken = "mXW9f1XL1zJMYqT4ySolIFFdQS4"
 
 	// Create and populate worker queue
 	r.WorkQueue = make(chan JobInfo)
