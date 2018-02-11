@@ -6,7 +6,7 @@ import "strconv"
 import "net/http"
 import "encoding/json"
 import "encoding/base64"
-import "sync"
+
 import "time"
 import "bytes"
 import "io/ioutil"
@@ -16,7 +16,6 @@ type RedditIngester struct {
 	Conf           *Configuration
 	WorkQueue      chan JobInfo
 	BaseURL        string
-	Wg             *sync.WaitGroup
 	AccessToken    string
 	PostgresClient *PostgresClient
 }
@@ -158,7 +157,6 @@ func (r *RedditIngester) Run() {
 		job.PageType = "subreddit"
 		r.WorkQueue <- job
 	}
-	r.Wg.Wait()
 }
 
 type AuthResponse struct {
@@ -203,16 +201,12 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r.PostgresClient = NewPostgresClient(r.Conf.PGHost, r.Conf.PGPort,
 		r.Conf.PGUser, r.Conf.PGPassword, r.Conf.PGDbname)
 
-	var wg sync.WaitGroup
-	r.Wg = &wg
-
 	// Reddit has an unauthenticated API but it's far too rate limited
 	r.Authenticate()
 
 	// Create and populate worker queue
 	r.WorkQueue = make(chan JobInfo, 50000)
 	for i := 0; i < r.Conf.NumWorkers; i++ {
-		r.Wg.Add(1)
 		go r.Worker()
 	}
 	go r.LogChannelInfo()
