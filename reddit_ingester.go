@@ -1,13 +1,13 @@
 package main
 
 import "log"
+
 import "strconv"
 import "net/http"
 import "encoding/json"
 import "encoding/base64"
 import "sync"
-
-// import "time"
+import "time"
 import "bytes"
 import "io/ioutil"
 import "fmt"
@@ -56,25 +56,22 @@ type JobInfo struct {
 
 // Parses a response tree for comments and writes them to postgres
 func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
-	// TODO: This method just prints the comments right now. Next step is writing them to postgres
 	switch tree.Kind {
 	case "t3":
 		// TODO: Send these to postgres
 		fmt.Println(tree.Data.Title)
 		fmt.Println(tree.Data.Selftext)
 	case "t1":
-		// TODO: Send this to postgres
-		fmt.Println("ID: " + tree.Data.Id)
-		fmt.Println("Created at: " + strconv.Itoa(int(tree.Data.Created_utc)))
-		fmt.Println("Score: " + strconv.Itoa(tree.Data.Score))
-		fmt.Println("Body: " + tree.Data.Body)
-		fmt.Println("----------------------------------")
-
 		// Insert into postgres if comment hasn't been seen before
 		if !r.PostgresClient.CommentExists(tree.Data.Id) {
 			commentsCounter.Inc()
 			r.PostgresClient.InsertComment(tree.Data.Id, tree.Data.Subreddit_name_prefixed,
 				tree.Data.Body, int(tree.Data.Created_utc))
+			fmt.Println("ID: " + tree.Data.Id)
+			fmt.Println("Created at: " + strconv.Itoa(int(tree.Data.Created_utc)))
+			fmt.Println("Score: " + strconv.Itoa(tree.Data.Score))
+			fmt.Println("Body: " + tree.Data.Body)
+			fmt.Println("----------------------------------")
 		} else {
 			duplicatesGauge.Inc()
 		}
@@ -112,6 +109,7 @@ func (r *RedditIngester) Worker() {
 			if err != nil {
 				log.Fatal(err)
 			}
+			fmt.Println("Response status: " + resp.Status)
 			for _, story := range subredditResponse.Data.Children {
 				url := story.Data.Permalink
 				ji := new(JobInfo)
@@ -132,6 +130,7 @@ func (r *RedditIngester) Worker() {
 			if err != nil {
 				panic(err)
 			}
+			fmt.Println("Response status: " + resp.Status)
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
 			commentResponse := make([]ResponsePrimitive, 0)
@@ -152,6 +151,7 @@ func (r *RedditIngester) Worker() {
 // Entry point of a single run
 // This program will be run as a cron job and will handle its own deduplication
 func (r *RedditIngester) Run() {
+	fmt.Println("Attempting run...")
 	for _, subreddit := range r.Conf.TargetSubreddits {
 		job := JobInfo{}
 		job.URL = r.BaseURL + "r/" + subreddit
@@ -187,6 +187,13 @@ func (r *RedditIngester) Authenticate() {
 	r.AccessToken = authResp.Access_token
 }
 
+func (r *RedditIngester) LogChannelInfo() {
+	for {
+		workQueueGauge.Add(float64(len(r.WorkQueue)))
+		time.Sleep(time.Duration(5) * time.Second)
+	}
+}
+
 func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r := new(RedditIngester)
 	r.Conf = conf
@@ -203,10 +210,11 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r.Authenticate()
 
 	// Create and populate worker queue
-	r.WorkQueue = make(chan JobInfo, 5000)
+	r.WorkQueue = make(chan JobInfo, 50000)
 	for i := 0; i < r.Conf.NumWorkers; i++ {
 		r.Wg.Add(1)
 		go r.Worker()
 	}
+	go r.LogChannelInfo()
 	return r
 }

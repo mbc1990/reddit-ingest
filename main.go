@@ -40,6 +40,7 @@ func main() {
 
 	prometheus.MustRegister(commentsCounter)
 	prometheus.MustRegister(duplicatesGauge)
+	prometheus.MustRegister(workQueueGauge)
 	http.Handle("/metrics", prometheus.Handler())
 	go http.ListenAndServe(conf.PrometheusPort, nil)
 
@@ -47,7 +48,7 @@ func main() {
 
 	// Run forever, sleeping between runs
 	for {
-		go ing.Run()
+		ing.Run()
 		time.Sleep(time.Duration(conf.RunEverySeconds) * time.Second)
 	}
 }
