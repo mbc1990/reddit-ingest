@@ -101,13 +101,13 @@ func (r *RedditIngester) Worker() {
 			if err != nil {
 				panic(err)
 			}
-			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
 			subredditResponse := new(SubredditResponse)
 			err = json.Unmarshal(body, &subredditResponse)
 			if err != nil {
 				log.Fatal(err)
 			}
+			resp.Body.Close()
 			fmt.Println("Response status: " + resp.Status)
 			for _, story := range subredditResponse.Data.Children {
 				url := story.Data.Permalink
@@ -130,10 +130,10 @@ func (r *RedditIngester) Worker() {
 				panic(err)
 			}
 			fmt.Println("Response status: " + resp.Status)
-			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
 			commentResponse := make([]ResponsePrimitive, 0)
 			json.Unmarshal(body, &commentResponse)
+			resp.Body.Close()
 
 			// A comment response is an array of trees, so send each off
 			// to the recursive tree parser
