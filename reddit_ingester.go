@@ -138,7 +138,7 @@ func (r *RedditIngester) Worker() {
 			// A comment response is an array of trees, so send each off
 			// to the recursive tree parser
 			for _, topLevelNode := range commentResponse {
-				r.ParseTreeForComments(&topLevelNode)
+				go r.ParseTreeForComments(&topLevelNode)
 			}
 
 		} else {
