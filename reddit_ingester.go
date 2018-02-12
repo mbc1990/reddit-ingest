@@ -165,6 +165,7 @@ type AuthResponse struct {
 }
 
 // Goes through the reddit Basic Authentication flow
+// TODO: These auth tokens are expiring
 func (r *RedditIngester) Authenticate() {
 	url := "https://www.reddit.com/api/v1/access_token"
 	client := &http.Client{}
