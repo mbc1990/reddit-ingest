@@ -142,7 +142,7 @@ func (r *RedditIngester) Worker() {
 			}
 
 		} else {
-			log.Fatal("Unexpected job type")
+			fmt.Println("Unexpected job type")
 		}
 	}
 }
