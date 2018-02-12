@@ -109,6 +109,11 @@ func (r *RedditIngester) Worker() {
 			}
 			resp.Body.Close()
 			fmt.Println("Response status: " + resp.Status)
+			// If status is 401, refresh auth token and re-enqueue the job
+			if resp.StatusCode == 401 {
+				r.Authenticate()
+				r.WorkQueue <- info
+			}
 			for _, story := range subredditResponse.Data.Children {
 				url := story.Data.Permalink
 				ji := new(JobInfo)
@@ -134,6 +139,10 @@ func (r *RedditIngester) Worker() {
 			commentResponse := make([]ResponsePrimitive, 0)
 			json.Unmarshal(body, &commentResponse)
 			resp.Body.Close()
+			if resp.StatusCode == 401 {
+				r.Authenticate()
+				r.WorkQueue <- info
+			}
 
 			// A comment response is an array of trees, so send each off
 			// to the recursive tree parser
