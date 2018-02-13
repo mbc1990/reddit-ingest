@@ -89,26 +89,29 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 
 func (r *RedditIngester) Worker() {
 	for info := range r.WorkQueue {
-		// TODO: Refactor request construction out of the if/then cases
+		// Ignore unexpected data
+		if !(info.PageType == "subreddit" || info.PageType == "comments") {
+			continue
+		}
+
+		url := info.URL
+		fmt.Println("Getting stories for " + url)
+		req, _ := http.NewRequest("GET", url, nil)
+		req.Header.Add("Authorization", "Bearer "+r.AccessToken)
+		req.Header.Add("User-Agent", r.Conf.ClientId+"by "+r.Conf.Username)
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			panic(err)
+		}
+		body, _ := ioutil.ReadAll(resp.Body)
 		if info.PageType == "subreddit" {
-			url := info.URL
-			fmt.Println("Getting stories for " + url)
-			req, _ := http.NewRequest("GET", url, nil)
-			req.Header.Add("Authorization", "Bearer "+r.AccessToken)
-			req.Header.Add("User-Agent", r.Conf.ClientId+"by "+r.Conf.Username)
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				panic(err)
-			}
-			body, _ := ioutil.ReadAll(resp.Body)
 			subredditResponse := new(SubredditResponse)
 			err = json.Unmarshal(body, &subredditResponse)
 			if err != nil {
 				log.Fatal(err)
 			}
 			resp.Body.Close()
-			fmt.Println("Response status: " + resp.Status)
 			// If status is 401, refresh auth token and re-enqueue the job
 			if resp.StatusCode == 401 {
 				r.Authenticate()
@@ -117,28 +120,17 @@ func (r *RedditIngester) Worker() {
 			for _, story := range subredditResponse.Data.Children {
 				url := story.Data.Permalink
 				ji := new(JobInfo)
-				ji.URL = url
+				ji.URL = r.BaseURL + url
 				ji.PageType = "comments"
 				fmt.Println("Adding " + url + " to queue")
 				r.WorkQueue <- *ji
 			}
 
 		} else if info.PageType == "comments" {
-			url := r.BaseURL + info.URL
-			fmt.Println("Getting comments for " + url)
-			req, _ := http.NewRequest("GET", url, nil)
-			req.Header.Add("Authorization", "Bearer "+r.AccessToken)
-			req.Header.Add("User-Agent", r.Conf.ClientId+"by "+r.Conf.Username)
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println("Response status: " + resp.Status)
-			body, _ := ioutil.ReadAll(resp.Body)
 			commentResponse := make([]ResponsePrimitive, 0)
 			json.Unmarshal(body, &commentResponse)
 			resp.Body.Close()
+			// If status is 401, refresh auth token and re-enqueue the job
 			if resp.StatusCode == 401 {
 				r.Authenticate()
 				r.WorkQueue <- info
