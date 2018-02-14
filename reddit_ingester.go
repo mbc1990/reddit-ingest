@@ -6,7 +6,6 @@ import "strconv"
 import "net/http"
 import "encoding/json"
 import "encoding/base64"
-
 import "time"
 import "bytes"
 import "io/ioutil"
@@ -113,6 +112,7 @@ func (r *RedditIngester) Worker() {
 			}
 			resp.Body.Close()
 			// If status is 401, refresh auth token and re-enqueue the job
+			// TODO: This can create a situation where every request needs to authenticate because each authentication will invalidate the previous ones
 			if resp.StatusCode == 401 {
 				r.Authenticate()
 				r.WorkQueue <- info
@@ -166,8 +166,9 @@ type AuthResponse struct {
 }
 
 // Goes through the reddit Basic Authentication flow
-// TODO: These auth tokens are expiring
 func (r *RedditIngester) Authenticate() {
+	reAuthGauge.Inc()
+	defer reAuthGauge.Dec()
 	url := "https://www.reddit.com/api/v1/access_token"
 	client := &http.Client{}
 	bodyToSend := bytes.NewBuffer([]byte("grant_type=client_credentials&\\device_id=1"))

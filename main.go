@@ -41,6 +41,7 @@ func main() {
 	prometheus.MustRegister(commentsCounter)
 	prometheus.MustRegister(duplicatesGauge)
 	prometheus.MustRegister(workQueueGauge)
+	prometheus.MustRegister(reAuthGauge)
 	http.Handle("/metrics", prometheus.Handler())
 	go http.ListenAndServe(conf.PrometheusPort, nil)
 

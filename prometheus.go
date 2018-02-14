@@ -16,3 +16,8 @@ var workQueueGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name: "work_queue",
 	Help: "Number of jobs in the work queue",
 })
+
+var reAuthGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "re_auth",
+	Help: "Every time we reauthenticate",
+})
