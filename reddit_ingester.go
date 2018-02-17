@@ -92,7 +92,7 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 func (r *RedditIngester) Worker() {
 	for info := range r.WorkQueue {
 		// Ignore unexpected data
-		workQueueGauge.Add(float64(len(r.WorkQueue)))
+		go workQueueGauge.Dec()
 		if !(info.PageType == "subreddit" || info.PageType == "comments") {
 			continue
 		}
@@ -118,6 +118,7 @@ func (r *RedditIngester) Worker() {
 			// If status is 401, refresh auth token and re-enqueue the job
 			if resp.StatusCode == 401 {
 				r.AuthRequests <- 1
+				go workQueueGauge.Inc()
 				r.WorkQueue <- info
 			}
 			for _, story := range subredditResponse.Data.Children {
@@ -126,6 +127,7 @@ func (r *RedditIngester) Worker() {
 				ji.URL = r.BaseURL + url
 				ji.PageType = "comments"
 				fmt.Println("Adding " + url + " to queue")
+				go workQueueGauge.Inc()
 				r.WorkQueue <- *ji
 			}
 
@@ -136,6 +138,7 @@ func (r *RedditIngester) Worker() {
 			// If status is 401, refresh auth token and re-enqueue the job
 			if resp.StatusCode == 401 {
 				r.AuthRequests <- 1
+				go workQueueGauge.Inc()
 				r.WorkQueue <- info
 			}
 
@@ -159,6 +162,7 @@ func (r *RedditIngester) Run() {
 		job := JobInfo{}
 		job.URL = r.BaseURL + "r/" + subreddit
 		job.PageType = "subreddit"
+		go workQueueGauge.Inc()
 		r.WorkQueue <- job
 	}
 }
