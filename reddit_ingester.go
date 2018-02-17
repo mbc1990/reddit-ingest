@@ -201,7 +201,7 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r.Authenticate()
 
 	// Create and populate worker queue
-	r.WorkQueue = make(chan JobInfo, 50000)
+	r.WorkQueue = make(chan JobInfo, 500000)
 	for i := 0; i < r.Conf.NumWorkers; i++ {
 		go r.Worker()
 	}
