@@ -6,7 +6,6 @@ import "strconv"
 import "net/http"
 import "encoding/json"
 import "encoding/base64"
-import "time"
 import "bytes"
 import "io/ioutil"
 import "fmt"
@@ -82,6 +81,7 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 			r.ParseTreeForComments(&child)
 		}
 	default:
+		// TODO: Handle "more" kind
 		fmt.Println("Unexpected object type: " + tree.Kind)
 	}
 }
@@ -89,6 +89,7 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 func (r *RedditIngester) Worker() {
 	for info := range r.WorkQueue {
 		// Ignore unexpected data
+		workQueueGauge.Add(float64(len(r.WorkQueue)))
 		if !(info.PageType == "subreddit" || info.PageType == "comments") {
 			continue
 		}
@@ -168,7 +169,6 @@ type AuthResponse struct {
 // Goes through the reddit Basic Authentication flow
 func (r *RedditIngester) Authenticate() {
 	reAuthGauge.Inc()
-	defer reAuthGauge.Dec()
 	url := "https://www.reddit.com/api/v1/access_token"
 	client := &http.Client{}
 	bodyToSend := bytes.NewBuffer([]byte("grant_type=client_credentials&\\device_id=1"))
@@ -188,13 +188,6 @@ func (r *RedditIngester) Authenticate() {
 	r.AccessToken = authResp.Access_token
 }
 
-func (r *RedditIngester) LogChannelInfo() {
-	for {
-		workQueueGauge.Add(float64(len(r.WorkQueue)))
-		time.Sleep(time.Duration(5) * time.Second)
-	}
-}
-
 func NewRedditIngester(conf *Configuration) *RedditIngester {
 	r := new(RedditIngester)
 	r.Conf = conf
@@ -212,6 +205,5 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 	for i := 0; i < r.Conf.NumWorkers; i++ {
 		go r.Worker()
 	}
-	go r.LogChannelInfo()
 	return r
 }
