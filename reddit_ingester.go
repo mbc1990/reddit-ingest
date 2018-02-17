@@ -8,14 +8,17 @@ import "encoding/json"
 import "encoding/base64"
 import "bytes"
 import "io/ioutil"
+import "time"
 import "fmt"
 
 type RedditIngester struct {
 	Conf           *Configuration
 	WorkQueue      chan JobInfo
+	AuthRequests   chan int
 	BaseURL        string
 	AccessToken    string
 	PostgresClient *PostgresClient
+	LastAuth       time.Time
 }
 
 // TODO: Replace this with ResponsePrimitive
@@ -113,9 +116,8 @@ func (r *RedditIngester) Worker() {
 			}
 			resp.Body.Close()
 			// If status is 401, refresh auth token and re-enqueue the job
-			// TODO: This can create a situation where every request needs to authenticate because each authentication will invalidate the previous ones
 			if resp.StatusCode == 401 {
-				r.Authenticate()
+				r.AuthRequests <- 1
 				r.WorkQueue <- info
 			}
 			for _, story := range subredditResponse.Data.Children {
@@ -133,7 +135,7 @@ func (r *RedditIngester) Worker() {
 			resp.Body.Close()
 			// If status is 401, refresh auth token and re-enqueue the job
 			if resp.StatusCode == 401 {
-				r.Authenticate()
+				r.AuthRequests <- 1
 				r.WorkQueue <- info
 			}
 
@@ -158,6 +160,18 @@ func (r *RedditIngester) Run() {
 		job.URL = r.BaseURL + "r/" + subreddit
 		job.PageType = "subreddit"
 		r.WorkQueue <- job
+	}
+}
+
+// When our auth token expires, workers put in requests for new auth tokens
+func (r *RedditIngester) AuthWorker() {
+	for _ = range r.AuthRequests {
+		now := time.Now()
+		diff := now.Sub(r.LastAuth)
+		if diff.Minutes() > 50 {
+			r.Authenticate()
+			r.LastAuth = now
+		}
 	}
 }
 
@@ -186,6 +200,7 @@ func (r *RedditIngester) Authenticate() {
 	authResp := new(AuthResponse)
 	json.Unmarshal(body, &authResp)
 	r.AccessToken = authResp.Access_token
+	fmt.Println("Authenticated")
 }
 
 func NewRedditIngester(conf *Configuration) *RedditIngester {
@@ -199,11 +214,14 @@ func NewRedditIngester(conf *Configuration) *RedditIngester {
 
 	// Reddit has an unauthenticated API but it's far too rate limited
 	r.Authenticate()
+	r.AuthRequests = make(chan int, 1000)
+	go r.AuthWorker()
 
 	// Create and populate worker queue
 	r.WorkQueue = make(chan JobInfo, 500000)
 	for i := 0; i < r.Conf.NumWorkers; i++ {
 		go r.Worker()
 	}
+
 	return r
 }
