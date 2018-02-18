@@ -83,8 +83,14 @@ func (r *RedditIngester) ParseTreeForComments(tree *ResponsePrimitive) {
 		for _, child := range *tree.Data.Children {
 			r.ParseTreeForComments(&child)
 		}
+	case "more":
+		// Not all comments are necessarily returned from an api call
+		// This indiciates that we can ask for more comments
+		// Unfortunately, the docs say this endpoint should not be hit
+		// with lots of concurrency so we may need a separate worker pool
+		// to handle this
+		fmt.Println("Ignoring more response")
 	default:
-		// TODO: Handle "more" kind
 		fmt.Println("Unexpected object type: " + tree.Kind)
 	}
 }
@@ -150,6 +156,7 @@ func (r *RedditIngester) Worker() {
 
 		} else {
 			fmt.Println("Unexpected job type")
+			resp.Body.Close()
 		}
 	}
 }
